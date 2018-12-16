@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-default_base_branch='master'
+default_base_branch='origin/master'
 
 base_branch=${1:-$default_base_branch}
 
@@ -11,7 +11,7 @@ main(){
 
   init
 
-  git checkout -b $temp_branch
+  git checkout --quiet $current_branch_hash     # switching to detached head state
   git merge $base_branch -m "$message"
   echo
 
@@ -33,8 +33,8 @@ init(){
     exit 1
   fi 
   
-  local base_branch_hash=$(get_hash $base_branch)
-  local current_branch_hash=$(get_hash $current_branch)
+  base_branch_hash=$(get_hash $base_branch)
+  current_branch_hash=$(get_hash $current_branch)
   
   if [ -z "$base_branch_hash" ]; then
     echo "Base branch '$base_branch' not found."
@@ -64,13 +64,8 @@ init(){
     exit 1
   fi
 
-  temp_branch=$current_branch-temp
-  
-  echo "Temp branch:"
-  echo "$temp_branch"
-  echo
-  
-  message="Temp commit on branch '$temp_branch' to save result of merging '$base_branch' into '$current_branch'."
+
+  message="Hidden temp commit to save result of merging '$base_branch' into '$current_branch' as detached head."
   
   while true
   do
@@ -108,20 +103,38 @@ get_hash(){
 
 
 merge_done(){
-  git checkout $current_branch
+  hidden_result_hash=$(get_hash HEAD)
+  
+  echo "Merge succeeded on hidden commit:"
+  echo $hidden_result_hash
+  echo
+
+  echo "Starting rebase automatically resolving any conflicts in favor of current branch."
+  echo 
+  
+  git checkout --quiet $current_branch
   git rebase $base_branch -X theirs
+  echo
+  
   restore_tree
-  git branch -D $temp_branch
 }
 
 
 restore_tree(){
-  local current_tree=$(git cat-file -p HEAD | grep tree)
-  local temp_tree=$(git cat-file -p $temp_branch | grep tree)
+  current_tree=$(git cat-file -p HEAD | grep tree)
+  result_tree=$(git cat-file -p $hidden_result_hash | grep tree)
 
-  if [ "$current_tree" != "$temp_tree" ]; then
-    commit_hash=$(git commit-tree $temp_branch^{tree} -p HEAD -m "Rebase via merge. '$current_branch' rebased on '$base_branch'.")
-    git merge $commit_hash
+  if [ "$current_tree" != "$result_tree" ]; then
+    echo "Restoring project state from hidden merge with single additional commit."
+    echo
+
+    additional_commit_message="Rebase via merge. '$current_branch' rebased on '$base_branch'."
+    additional_commit_hash=$(git commit-tree $hidden_result_hash^{tree} -p HEAD -m "$additional_commit_message")
+    
+    git merge $additional_commit_hash
+    echo
+  else
+    echo "You don't need additional commit. Project state is correct."
   fi
 }
 
