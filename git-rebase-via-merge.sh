@@ -29,7 +29,7 @@ init(){
   current_branch=$(git symbolic-ref --short HEAD)
 
   if [ -z "$current_branch" ]; then
-    echo "There is no current branch: you are in detached head."
+    echo "Can't rebase. There is no current branch: you are in detached head."
     exit 1
   fi 
   
@@ -37,7 +37,7 @@ init(){
   current_branch_hash=$(get_hash $current_branch)
   
   if [ -z "$base_branch_hash" ]; then
-    echo "Base branch '$base_branch' not found."
+    echo "Can't rebase. Base branch '$base_branch' not found."
     exit 1
   fi 
   
@@ -50,17 +50,24 @@ init(){
   echo
 
   if [ "$base_branch_hash" = "$current_branch_hash" ]; then
-    echo "Current branch is equal to base branch."
+    echo "Can't rebase. Current branch is equal to base branch."
     exit 1
   fi
 
   if [ -z "$(git rev-list $base_branch ^$current_branch)" ]; then
-    echo "Current branch is already rebased!"
+    echo "Can't rebase. Current branch is already rebased."
     exit 1
   fi
 
   if [ -z "$(git rev-list ^$base_branch $current_branch)" ]; then
-    echo "Current branch has no any unique commits. You can do fast-forward merge."
+    echo "Can't rebase. Current branch has no any unique commits. You can do fast-forward merge."
+    exit 1
+  fi
+
+  if [ -n "$(get_any_changed_files)" ]; then
+    echo "Can't rebase. You have uncommitted changes in following files:"
+    echo
+    get_any_changed_files
     exit 1
   fi
 
@@ -83,6 +90,11 @@ init(){
       echo
     fi
   done
+}
+
+
+get_any_changed_files(){
+  git status --porcelain | cut -c4-
 }
 
 
@@ -142,7 +154,6 @@ restore_tree(){
 abort_merge(){
   git merge --abort
   git checkout $current_branch
-  git branch -D $temp_branch
 }
 
 
