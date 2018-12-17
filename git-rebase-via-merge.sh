@@ -89,7 +89,7 @@ init(){
     if [ "$input" = "c" ]; then
       break
     elif [ "$input" = "a" ]; then
-      echo "Aborting."
+      echo "Aborted."
       exit 1
     else  
       echo "Type 'c' - Continue or 'a' - Abort."
@@ -187,8 +187,9 @@ conflict_menu(){
         break
       fi
     elif [ "$input" = "a" ]; then
-        echo "Aborting merge and operation."
+        echo "Aborting merge."
         abort_merge
+        echo "Aborted."
         exit 2
     else
         echo "Type 'c' - Continue or 'a' - Abort."
