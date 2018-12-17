@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# The latest version of this script is here
+# https://github.com/capslocky/git-rebase-via-merge
+#
+# Copyright (c) 2018 Baurzhan Atanov
+#
 
 default_base_branch='origin/master'
 
