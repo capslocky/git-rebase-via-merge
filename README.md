@@ -20,7 +20,7 @@ This script implements this approach as simple dialog and applicable on Linux / 
 First, get the script and make it executable
 
 ```bash
-curl -L https://git.io/fpNiY -o ~/git-rebase-via-merge.sh
+curl -L https://git.io/rebase-via-merge -o ~/git-rebase-via-merge.sh
 chmod +x ~/git-rebase-via-merge.sh
 ```
 
