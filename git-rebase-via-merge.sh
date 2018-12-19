@@ -6,7 +6,7 @@
 # Copyright (c) 2018 Baurzhan Atanov
 #
 
-default_base_branch='origin/master'
+default_base_branch='origin/develop'
 
 base_branch=${1:-$default_base_branch}
 
