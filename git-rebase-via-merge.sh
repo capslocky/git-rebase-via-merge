@@ -149,7 +149,7 @@ restore_tree(){
     additional_commit_message="Rebase via merge. '$current_branch' rebased on '$base_branch'."
     additional_commit_hash=$(git commit-tree $hidden_result_hash^{tree} -p HEAD -m "$additional_commit_message")
     
-    git merge $additional_commit_hash
+    git merge --ff $additional_commit_hash
     echo
   else
     echo "You don't need additional commit. Project state is correct."
