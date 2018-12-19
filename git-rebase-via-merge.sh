@@ -45,7 +45,7 @@ init(){
   if [ -z "$base_branch_hash" ]; then
     echo "Can't rebase. Base branch '$base_branch' not found."
     exit 1
-  fi 
+  fi
   
   echo "Current branch:"
   echo "$current_branch ($current_branch_hash)"
@@ -77,9 +77,6 @@ init(){
     exit 1
   fi
 
-
-  message="Hidden temp commit to save result of merging '$base_branch' into '$current_branch' as detached head."
-  
   while true
   do
     echo "Continue (c) / Abort (a)"
@@ -96,6 +93,8 @@ init(){
       echo
     fi
   done
+
+  message="Hidden temp commit to save result of merging '$base_branch' into '$current_branch' as detached head."
 }
 
 
@@ -148,18 +147,12 @@ restore_tree(){
 
     additional_commit_message="Rebase via merge. '$current_branch' rebased on '$base_branch'."
     additional_commit_hash=$(git commit-tree $hidden_result_hash^{tree} -p HEAD -m "$additional_commit_message")
-    
+
     git merge --ff $additional_commit_hash
     echo
   else
     echo "You don't need additional commit. Project state is correct."
   fi
-}
-
-
-abort_merge(){
-  git merge --abort
-  git checkout $current_branch
 }
 
 
@@ -188,7 +181,8 @@ conflict_menu(){
       fi
     elif [ "$input" = "a" ]; then
         echo "Aborting merge."
-        abort_merge
+        git merge --abort
+        git checkout $current_branch
         echo "Aborted."
         exit 2
     else
