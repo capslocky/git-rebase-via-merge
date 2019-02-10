@@ -7,8 +7,8 @@
 #
 
 default_base_branch='origin/develop'
-
 base_branch=${1:-$default_base_branch}
+set -e
 
 
 main(){
@@ -18,7 +18,7 @@ main(){
   init
 
   git checkout --quiet $current_branch_hash     # switching to detached head state
-  git merge $base_branch -m "$message"
+  git merge $base_branch -m "$message" || true
   echo
 
   if check_merge_in_progress; then
@@ -109,8 +109,8 @@ get_unstaged_files(){
 
 
 check_merge_in_progress(){
-  git merge HEAD &> /dev/null
-  (( $? > 0 ))
+  file_merge="$(git rev-parse --show-toplevel)/.git/MERGE_HEAD"
+  [ -e $file_merge ]
 }
 
 
