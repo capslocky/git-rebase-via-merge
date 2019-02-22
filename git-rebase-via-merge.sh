@@ -3,7 +3,7 @@
 # The latest version of this script is here
 # https://github.com/capslocky/git-rebase-via-merge
 #
-# Copyright (c) 2018 Baurzhan Atanov
+# Copyright (c) 2019 Baurzhan Atanov
 #
 
 default_base_branch='origin/develop'
@@ -28,6 +28,7 @@ main(){
   fi
 
   echo "Done."
+  exit 0
 }
 
 
@@ -37,7 +38,7 @@ init(){
   if [ -z "$current_branch" ]; then
     echo "Can't rebase. There is no current branch: you are in detached head."
     exit 1
-  fi 
+  fi  
   
   base_branch_hash=$(get_hash $base_branch)
   current_branch_hash=$(get_hash $current_branch)
@@ -49,10 +50,12 @@ init(){
   
   echo "Current branch:"
   echo "$current_branch ($current_branch_hash)"
+  echo $(get_message $current_branch_hash)
   echo
   
   echo "Base branch:"
   echo "$base_branch ($base_branch_hash)"
+  echo $(get_message $base_branch_hash)
   echo
 
   if [ "$base_branch_hash" = "$current_branch_hash" ]; then
@@ -89,7 +92,8 @@ init(){
       echo "Aborted."
       exit 1
     else  
-      echo "Type 'c' - Continue or 'a' - Abort."
+      echo "Invalid option."
+      echo "Type key 'c' - to Continue or 'a' - to Abort."
       echo
     fi
   done
@@ -115,7 +119,12 @@ check_merge_in_progress(){
 
 
 get_hash(){
-  git rev-parse --short "$1"
+  git rev-parse --short "$1" || true
+}
+
+
+get_message(){
+  git log -n 1 --pretty=format:%s "$1"
 }
 
 
@@ -186,7 +195,8 @@ conflict_menu(){
         echo "Aborted."
         exit 2
     else
-        echo "Type 'c' - Continue or 'a' - Abort."
+        echo "Invalid option."
+        echo "Type key 'c' - to Continue or 'a' - to Abort."
         echo
     fi
   done
