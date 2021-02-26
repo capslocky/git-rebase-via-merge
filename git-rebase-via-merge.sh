@@ -3,7 +3,7 @@
 # The latest version of this script is here
 # https://github.com/capslocky/git-rebase-via-merge
 #
-# Copyright (c) 2019 Baurzhan Atanov
+# Copyright (c) 2021 Baur Atanov
 #
 
 default_base_branch='origin/develop'
@@ -38,24 +38,24 @@ init(){
   if [ -z "$current_branch" ]; then
     echo "Can't rebase. There is no current branch: you are in detached head."
     exit 1
-  fi  
-  
+  fi
+
   base_branch_hash=$(get_hash $base_branch)
   current_branch_hash=$(get_hash $current_branch)
-  
+
   if [ -z "$base_branch_hash" ]; then
     echo "Can't rebase. Base branch '$base_branch' not found."
     exit 1
   fi
-  
+
   echo "Current branch:"
   echo "$current_branch ($current_branch_hash)"
-  echo $(get_message $current_branch_hash)
+  echo $(show_commit $current_branch_hash)
   echo
-  
+
   echo "Base branch:"
   echo "$base_branch ($base_branch_hash)"
-  echo $(get_message $base_branch_hash)
+  echo $(show_commit $base_branch_hash)
   echo
 
   if [ "$base_branch_hash" = "$current_branch_hash" ]; then
@@ -85,13 +85,13 @@ init(){
     echo "Continue (c) / Abort (a)"
     read input
     echo
-    
+
     if [ "$input" = "c" ]; then
       break
     elif [ "$input" = "a" ]; then
       echo "Aborted."
       exit 1
-    else  
+    else
       echo "Invalid option."
       echo "Type key 'c' - to Continue or 'a' - to Abort."
       echo
@@ -103,12 +103,12 @@ init(){
 
 
 get_any_changed_files(){
-  git status --porcelain | cut -c4-
+  git status --porcelain --ignore-submodules=dirty | cut -c4-
 }
 
 
 get_unstaged_files(){
-  git status --porcelain | grep -v '^. ' | cut -c4-
+  git status --porcelain --ignore-submodules=dirty | grep -v '^. ' | cut -c4-
 }
 
 
@@ -123,25 +123,24 @@ get_hash(){
 }
 
 
-get_message(){
-  git log -n 1 --pretty=format:%s "$1"
+show_commit(){
+  git log -n 1 --pretty=format:"%<(20)%an | %<(14)%ar | %s" "$1"
 }
-
 
 merge_done(){
   hidden_result_hash=$(get_hash HEAD)
-  
+
   echo "Merge succeeded on hidden commit:"
   echo $hidden_result_hash
   echo
 
   echo "Starting rebase automatically resolving any conflicts in favor of current branch."
-  echo 
-  
+  echo
+
   git checkout --quiet $current_branch
   git rebase $base_branch -X theirs
   echo
-  
+
   restore_tree
 }
 
@@ -168,16 +167,16 @@ restore_tree(){
 conflict_menu(){
   echo "You have at least one merge conflict."
   echo
-  
+
   while true
   do
     echo "Fix all conflicts in the following files, stage them up and type 'c':"
     get_unstaged_files
-    
+
     echo "Continue (c) / Abort (a)"
     read input
     echo
-    
+
     if [ "$input" = "c" ]; then
       if [ -n "$(get_unstaged_files)" ]; then
         echo "There are still unstaged files."
