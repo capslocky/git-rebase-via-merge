@@ -3,10 +3,10 @@
 # The latest version of this script is here
 # https://github.com/capslocky/git-rebase-via-merge
 #
-# Copyright (c) 2021 Baur Atanov
+# Copyright (c) 2022 Baur Atanov
 #
 
-default_base_branch='origin/develop'
+default_base_branch="origin/develop"
 base_branch=${1:-$default_base_branch}
 set -e
 
@@ -17,14 +17,42 @@ main(){
 
   init
 
-  git checkout --quiet $current_branch_hash     # switching to detached head state
-  git merge $base_branch -m "$message" || true
+  git checkout --quiet $current_branch_hash # switching to detached head state (no current branch)
+  git merge $base_branch -m "Hidden orphaned commit to save merge result." || true
   echo
 
-  if check_merge_in_progress; then
-    conflict_menu
+  if merge_conflicts_present; then
+    echo "You have at least one merge conflict."
+    echo
+    fix_merge_conflicts
+  fi
+  
+  hidden_result_hash=$(get_hash HEAD)
+
+  echo "Merge succeeded at hidden commit:"
+  echo $hidden_result_hash
+  echo
+
+  echo "Starting rebase resolving any conflicts automatically."
+
+  git checkout --quiet $current_branch
+  git rebase $base_branch -X theirs
+  echo
+
+  current_tree=$(git cat-file -p HEAD | grep tree)
+  result_tree=$(git cat-file -p $hidden_result_hash | grep tree)
+
+  if [ "$current_tree" != "$result_tree" ]; then
+    echo "Restoring project state from the hidden merge with single additional commit."
+    echo
+
+    additional_commit_message="Rebase via merge. '$current_branch' rebased on '$base_branch'."
+    additional_commit_hash=$(git commit-tree $hidden_result_hash^{tree} -p HEAD -m "$additional_commit_message")
+
+    git merge --ff $additional_commit_hash
+    echo
   else
-    merge_done
+    echo "You don't need additional commit. Project state is correct."
   fi
 
   echo "Done."
@@ -58,8 +86,15 @@ init(){
   echo $(show_commit $base_branch_hash)
   echo
 
+  if [ -n "$(get_any_changed_files)" ]; then
+    echo "Can't rebase. You need to commit changes in the following files:"
+    echo
+    get_any_changed_files
+    exit 1
+  fi
+
   if [ "$base_branch_hash" = "$current_branch_hash" ]; then
-    echo "Can't rebase. Current branch is equal to base branch."
+    echo "Can't rebase. Current branch is equal to the base branch."
     exit 1
   fi
 
@@ -70,13 +105,6 @@ init(){
 
   if [ -z "$(git rev-list ^$base_branch $current_branch)" ]; then
     echo "Can't rebase. Current branch has no any unique commits. You can do fast-forward merge."
-    exit 1
-  fi
-
-  if [ -n "$(get_any_changed_files)" ]; then
-    echo "Can't rebase. You have uncommitted changes in following files:"
-    echo
-    get_any_changed_files
     exit 1
   fi
 
@@ -97,80 +125,33 @@ init(){
       echo
     fi
   done
-
-  message="Hidden temp commit to save result of merging '$base_branch' into '$current_branch' as detached head."
 }
-
 
 get_any_changed_files(){
   git status --porcelain --ignore-submodules=dirty | cut -c4-
 }
 
-
 get_unstaged_files(){
-  git status --porcelain --ignore-submodules=dirty | grep -v '^. ' | cut -c4-
+  git status --porcelain --ignore-submodules=dirty | grep -v "^. " | cut -c4-
 }
 
-
-check_merge_in_progress(){
+merge_conflicts_present(){
   file_merge="$(git rev-parse --show-toplevel)/.git/MERGE_HEAD"
   [ -e $file_merge ]
 }
-
 
 get_hash(){
   git rev-parse --short "$1" || true
 }
 
-
 show_commit(){
   git log -n 1 --pretty=format:"%<(20)%an | %<(14)%ar | %s" "$1"
 }
 
-merge_done(){
-  hidden_result_hash=$(get_hash HEAD)
-
-  echo "Merge succeeded on hidden commit:"
-  echo $hidden_result_hash
-  echo
-
-  echo "Starting rebase automatically resolving any conflicts in favor of current branch."
-  echo
-
-  git checkout --quiet $current_branch
-  git rebase $base_branch -X theirs
-  echo
-
-  restore_tree
-}
-
-
-restore_tree(){
-  current_tree=$(git cat-file -p HEAD | grep tree)
-  result_tree=$(git cat-file -p $hidden_result_hash | grep tree)
-
-  if [ "$current_tree" != "$result_tree" ]; then
-    echo "Restoring project state from hidden merge with single additional commit."
-    echo
-
-    additional_commit_message="Rebase via merge. '$current_branch' rebased on '$base_branch'."
-    additional_commit_hash=$(git commit-tree $hidden_result_hash^{tree} -p HEAD -m "$additional_commit_message")
-
-    git merge --ff $additional_commit_hash
-    echo
-  else
-    echo "You don't need additional commit. Project state is correct."
-  fi
-}
-
-
-conflict_menu(){
-  echo "You have at least one merge conflict."
-  echo
-
+fix_merge_conflicts(){
   while true
   do
-    echo "Fix all conflicts in the following files, stage them up and type 'c':"
+    echo "Fix all conflicts in the following files, stage all the changes and type 'c':"
     get_unstaged_files
 
     echo "Continue (c) / Abort (a)"
@@ -178,14 +159,13 @@ conflict_menu(){
     echo
 
     if [ "$input" = "c" ]; then
-      if [ -n "$(get_unstaged_files)" ]; then
-        echo "There are still unstaged files."
-        echo
-        continue
-      else
-        git commit -m "$message"
-        merge_done
+      if [ -z "$(get_unstaged_files)" ]; then
+        git commit -m "Hidden orphaned commit to save merge result."
         break
+      else
+        echo "There are still unstaged files."
+        get_unstaged_files
+        echo
       fi
     elif [ "$input" = "a" ]; then
         echo "Aborting merge."
@@ -200,6 +180,5 @@ conflict_menu(){
     fi
   done
 }
-
 
 main
