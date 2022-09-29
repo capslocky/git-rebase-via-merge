@@ -6,7 +6,7 @@
 # Copyright (c) 2022 Baur Atanov
 #
 
-default_base_branch="origin/main"
+default_base_branch="origin/develop"
 base_branch=${1:-$default_base_branch}
 set -e
 
@@ -113,7 +113,7 @@ init() {
 
   while true; do
     echo "Continue (c) / Abort (a)"
-    read -r input
+    read input
     echo
 
     if [ "$input" = "c" ]; then
@@ -169,7 +169,7 @@ fix_merge_conflicts() {
     echo
 
     echo "Continue (c) / Abort (a)"
-    read -r input
+    read input
     echo
 
     if [ "$input" = "c" ]; then
@@ -206,7 +206,7 @@ fix_rebase_conflicts() {
     echo
 
     echo "Continue (c) / Abort (a)"
-    read -r input
+    read input
     echo
 
     if [ "$input" = "c" ]; then
