@@ -1,53 +1,48 @@
 #!/usr/bin/env bash
 #
-# The latest version of this script is here
 # https://github.com/capslocky/git-rebase-via-merge
-#
-# Copyright (c) 2022 Baur Atanov
-#
 
 default_base_branch="origin/develop"
 base_branch=${1:-$default_base_branch}
+export GIT_ADVICE=0
 set -e
 
 main() {
-  echo "This script will perform rebase via merge."
+  echo "This script will perform a rebase via merge."
   echo
-
   init
-
-  git checkout --quiet "$current_branch_hash" # switching to detached head state (no current branch)
-  git merge "$base_branch" -m "Hidden orphaned commit to save merge result." || true
+  
+  git checkout --quiet "$current_branch_hash" # checkout to detached head (no branch, only commit)
+  git merge "$base_branch" -m "Hidden orphaned commit with merge result." || true
   echo
 
-  if merge_conflicts_present; then
-    echo "You have at least one merge conflict."
-    echo
-    fix_merge_conflicts
+  if [ -n "$(get_unstaged_files)" ]; then
+    prompt_user_to_fix_conflicts
   fi
 
   hidden_result_hash=$(get_hash HEAD)
 
-  echo "Merge succeeded at hidden commit:"
-  echo "$hidden_result_hash"
+  echo "Merge succeeded. The target state is: $hidden_result_hash"
+  echo "Starting rebase. Any conflicts will be resolved automatically."
   echo
 
-  echo "Starting rebase resolving any conflicts automatically."
-
   git checkout --quiet "$current_branch"
-  git rebase "$base_branch" -X theirs || true
+  git rebase "$base_branch" -X theirs 2>/dev/null || true # here option 'theirs' means choosing our changes.
 
-  if rebase_conflicts_present; then
-    echo "You have at least one rebase conflict."
+  while [ -n "$(get_unstaged_files)" ]; do
+    echo "File-level conflict detected. Removing their file, keeping ours." # e.g. parallel file rename
+    git status --porcelain
+    git status --porcelain | grep -E "^(DD|AU|UD) " | cut -c4- | xargs -r git rm --
+    git add -A
     echo
-    fix_rebase_conflicts
-  fi
+    git -c core.editor=true rebase --continue 2>/dev/null || true # suppressing opening commit message editor
+  done
 
-  current_tree=$(git cat-file -p HEAD | grep tree)
-  result_tree=$(git cat-file -p "$hidden_result_hash" | grep tree)
+  current_tree=$(git cat-file -p HEAD | grep "^tree")
+  result_tree=$(git cat-file -p "$hidden_result_hash" | grep "^tree")
 
   if [ "$current_tree" != "$result_tree" ]; then
-    echo "Restoring project state from the hidden merge with single additional commit."
+    echo "Restoring the project state from the hidden result with one additional commit."
     echo
 
     additional_commit_message="Rebase via merge. '$current_branch' rebased on '$base_branch'."
@@ -55,24 +50,33 @@ main() {
 
     git merge --ff "$additional_commit_hash"
     echo
-  else
-    echo "You don't need additional commit. Project state is correct."
   fi
 
-  echo "Done."
+  echo "Done. Current branch:"
+  echo "$(git branch --show-current) ($(get_hash HEAD))"
+  show_commit HEAD
   exit 0
 }
 
 init() {
-  current_branch=$(git symbolic-ref --short HEAD)
-
-  if [ -z "$current_branch" ]; then
-    echo "Can't rebase. There is no current branch: you are in detached head."
+  if [ -d "$(git rev-parse --git-path rebase-merge)" ]; then
+    echo "Can't rebase. Rebase in progress detected. Continue or abort existing rebase."
     exit 1
   fi
 
-  base_branch_hash=$(get_hash "$base_branch")
+  if [ -f "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+    echo "Can't rebase. Merge in progress detected. Continue or abort existing merge."
+    exit 1
+  fi
+
+  current_branch=$(git branch --show-current)
   current_branch_hash=$(get_hash "$current_branch")
+  base_branch_hash=$(get_hash "$base_branch")
+
+  if [ -z "$current_branch" ]; then
+    echo "Can't rebase. There is no current branch: detached head."
+    exit 1
+  fi
 
   if [ -z "$base_branch_hash" ]; then
     echo "Can't rebase. Base branch '$base_branch' not found."
@@ -80,7 +84,7 @@ init() {
   fi
 
   echo "Current branch:"
-  echo "$current_branch ($current_branch_hash)"
+  echo "$current_branch ($current_branch_hash)" # we can restore branch with: git reset 71e5dfa
   show_commit "$current_branch_hash"
   echo
 
@@ -111,20 +115,41 @@ init() {
     exit 1
   fi
 
+  echo "Continue (c) / Abort (a)"
+  read input
+
+  if [ "$input" != "c" ]; then
+    echo "Aborted."
+    exit 1
+  fi
+}
+
+prompt_user_to_fix_conflicts() {
+  echo "Fix all conflicts in the following files, stage all changes, do not commit, and type 'c':"
+  get_unstaged_files
+  echo
+
   while true; do
-    echo "Continue (c) / Abort (a)"
+    echo "Continue merge (c) / Abort merge (a)"
     read input
     echo
 
     if [ "$input" = "c" ]; then
-      break
+      if [ -n "$(get_unstaged_files)" ]; then
+        echo "There are still unstaged files:"
+        get_unstaged_files
+        echo
+      else
+        git -c core.editor=true merge --continue # suppressing opening commit message editor
+        break
+      fi
     elif [ "$input" = "a" ]; then
-      echo "Aborted."
-      exit 1
+      echo "Aborting merge."
+      git merge --abort
+      git checkout "$current_branch"
+      exit 2
     else
-      echo "Invalid option."
-      echo "Type key 'c' - to Continue or 'a' - to Abort."
-      echo
+      echo "Invalid option: $input"
     fi
   done
 }
@@ -137,99 +162,12 @@ get_unstaged_files() {
   git status --porcelain --ignore-submodules=dirty | grep -v "^. " | cut -c4-
 }
 
-get_files_with_conflict_markers() {
-  git diff --check | cat
-}
-
-merge_conflicts_present() {
-  file_merge="$(git rev-parse --show-toplevel)/.git/MERGE_HEAD"
-  [ -e "$file_merge" ]
-}
-
-rebase_conflicts_present() {
-  [[ $(git diff --name-only --diff-filter=U --relative) ]]
-}
-
 get_hash() {
-  git rev-parse --short "$1" || true
+  git rev-parse --short "$1" 2>/dev/null || true
 }
 
 show_commit() {
   git log -n 1 --pretty=format:"%<(20)%an | %<(14)%ar | %s" "$1"
-}
-
-fix_merge_conflicts() {
-  while true; do
-    echo "Fix all conflicts in the following files, stage all the changes and type 'c':"
-    get_unstaged_files
-    echo
-
-    echo "List of conflict markers:"
-    get_files_with_conflict_markers
-    echo
-
-    echo "Continue (c) / Abort (a)"
-    read input
-    echo
-
-    if [ "$input" = "c" ]; then
-      if [ -z "$(get_unstaged_files)" ]; then
-        git commit -m "Hidden orphaned commit to save merge result."
-        break
-      else
-        echo "There are still unstaged files."
-        get_unstaged_files
-        echo
-      fi
-    elif [ "$input" = "a" ]; then
-      echo "Aborting merge."
-      git merge --abort
-      git checkout "$current_branch"
-      echo "Aborted."
-      exit 2
-    else
-      echo "Invalid option."
-      echo "Type key 'c' - to Continue or 'a' - to Abort."
-      echo
-    fi
-  done
-}
-
-fix_rebase_conflicts() {
-  while true; do
-    echo "Fix all conflicts in the following files, stage all the changes and type 'c':"
-    get_unstaged_files
-    echo
-
-    echo "List of conflict markers:"
-    get_files_with_conflict_markers
-    echo
-
-    echo "Continue (c) / Abort (a)"
-    read input
-    echo
-
-    if [ "$input" = "c" ]; then
-      if [ -z "$(get_unstaged_files)" ]; then
-        git rebase --continue
-        break
-      else
-        echo "There are still unstaged files."
-        get_unstaged_files
-        echo
-      fi
-    elif [ "$input" = "a" ]; then
-      echo "Aborting rebase."
-      git rebase --abort
-      git checkout "$current_branch"
-      echo "Aborted."
-      exit 2
-    else
-      echo "Invalid option."
-      echo "Type key 'c' - to Continue or 'a' - to Abort."
-      echo
-    fi
-  done
 }
 
 main
