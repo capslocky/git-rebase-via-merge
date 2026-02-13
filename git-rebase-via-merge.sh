@@ -31,9 +31,9 @@ main() {
 
   while [ -n "$(get_unstaged_files)" ]; do
     echo "File-level conflict detected. Removing their file, keeping ours." # e.g. parallel file rename
-    git status --porcelain
-    git status --porcelain | grep -E "^(DD|AU|UD) " | cut -c4- | xargs -r git rm --
-    git add -A
+    git status --porcelain --ignore-submodules=all
+    git status --porcelain --ignore-submodules=all | grep -E "^(DD|AU|UD) " | cut -c4- | filter_submodules | xargs -r git rm --
+    git_add_excluding_submodules
     echo
     git -c core.editor=true rebase --continue 2>/dev/null || true # suppressing opening commit message editor
   done
@@ -158,12 +158,39 @@ prompt_user_to_fix_conflicts() {
   done
 }
 
+get_submodule_paths() {
+  git config --file .gitmodules --get-regexp path 2>/dev/null | awk '{print $2}' || true
+}
+
+filter_submodules() {
+  local submodules
+  submodules=$(get_submodule_paths)
+  if [ -z "$submodules" ]; then
+    cat  # no submodules, pass through
+  else
+    local pattern
+    pattern=$(echo "$submodules" | sed 's|/|\\/|g' | paste -sd '|' -)
+    grep -Ev "^($pattern)/?$" || true
+  fi
+}
+
+git_add_excluding_submodules() {
+  local submodules exclude_args
+  submodules=$(get_submodule_paths)
+  if [ -z "$submodules" ]; then
+    git add -A
+  else
+    exclude_args=$(echo "$submodules" | sed 's|^|:(exclude)|')
+    git add -A -- . $exclude_args
+  fi
+}
+
 get_any_changed_files() {
-  git status --porcelain --ignore-submodules=dirty | cut -c4-
+  git status --porcelain --ignore-submodules=all | cut -c4- | filter_submodules
 }
 
 get_unstaged_files() {
-  git status --porcelain --ignore-submodules=dirty | grep -v "^. " | cut -c4-
+  git status --porcelain --ignore-submodules=all | grep -v "^. " | cut -c4- | filter_submodules
 }
 
 get_hash() {
