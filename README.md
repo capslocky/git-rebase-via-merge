@@ -1,18 +1,18 @@
 # git-rebase-via-merge
 
-**Get a linear history with `rebase`, but resolve conflicts with the minimum effort like in `merge`.**
+**Get a linear history with `rebase`, but resolve all conflicts with the minimum effort like in `merge`.**
 
-This is a small, interactive Bash script for a very specific Git pain: rebasing a long feature branch can force you to resolve **many conflicts across many commits**, one by one. Sometimes this is *larger conflict scope* than it would be in a merge.
+This is a small, interactive Bash script for a classic Git pain: rebasing a long feature branch can force you to resolve **conflicts across many commits**, one by one. Sometimes total conflict scope is even *larger* than it would be in a merge.
 
-This workflow offers a combined approach: you resolve all conflicts **immediately and only once**, and then let the rebase run **automatically and mechanically**. You still get a linear history, but with the conflict resolution style of a merge.
+This workflow offers a combined approach: you discover the complete conflict scope **immediately**, resolve all conflicts **only once**, and then let the rebase run **mechanically** while completely **avoiding** `git rebase --continue` stops. You still get a linear history, but with the conflict resolution style of a merge.
 
 ## Visual example
-Here we need to rebase `feature` branch on `develop`.
+Here we need to rebase `feature` branch on `develop` and there are many conflicting changes. It's a demo repo you can find below.
 
 ![before](https://raw.githubusercontent.com/capslocky/assets/main/git-rebase-via-merge/before.png)
     
    
-The script moves the branch in the same way as a rebase. This is the demo repo you can find below.
+The script did a rebase after collapsing all conflicts in one-time manual resolution step.
 
 ![result](https://raw.githubusercontent.com/capslocky/assets/main/git-rebase-via-merge/result.png)
 
@@ -22,9 +22,9 @@ The script moves the branch in the same way as a rebase. This is the demo repo y
 ### Standard 'merge'
 
 **Pros**
-- You resolve all conflicts once.
-- Conflict scope is minimal and holistic (you see the whole picture).
 - Keeps history intact, safe for shared feature branches.
+- You resolve all conflicts once.
+- Conflict scope is minimal and you see it completely.
 
 **Cons**
 - Adds a merge commit every time.
@@ -51,7 +51,7 @@ The script moves the branch in the same way as a rebase. This is the demo repo y
 - History is linear like with a standard 'rebase'.
 
 **Cons / trade-offs**
-- Intermediate commits may not be independently buildable.
+- Intermediate commits may not be independently buildable (no manual per-commit resolution).
 - Sometimes an additional commit is added when the automatic rebase step doesn't resolve conflicts exactly the way you did.
 - Still rewrites history (same caveat as rebase).
 
@@ -61,15 +61,15 @@ The script moves the branch in the same way as a rebase. This is the demo repo y
 Conceptually, the script does this:
 
 1. Shows you information about the branches, checks if rebasing is possible, and prompts you to continue.
-2. It starts a hidden **merge** of the base branch into your current branch (in detached HEAD).
-3. You resolve all conflicts **there**, only once, with full merge context.
-4. The script records the **final merge result snapshot**.
-5. It then rebases your branch on the base branch **automatically**, all conflicts are forced to resolve mechanically.
+2. It starts a **hidden merge** from the base branch into your current branch (in detached HEAD).
+3. You resolve all conflicts **there**, only once, with full context.
+4. The script records the **merge result snapshot**.
+5. Rebases your branch on the base branch **automatically**, all conflicts are forced to resolve mechanically.
 6. At the end, it compares the rebased result with the merge snapshot.
 7. If needed, it creates **one extra commit** to make the rebased branch match the merge result exactly.
 
 Important implications:
-- If there are no conflicts, **there is nothing to do at all.**
+- If there are no conflicts, **there is nothing to resolve at all.**
 - The **final result is guaranteed** to match your manual resolution result.
 - The script optimizes for **minimum conflict resolution effort and final correctness**, not for perfect intermediate commits.
 
@@ -104,7 +104,7 @@ The default base branch is `origin/develop`, but you can change it in the script
 ## Try it on the demo repo
 Here’s a small [demo repo](https://github.com/capslocky/git-conflicts-demo) that shows the problem clearly. The `develop` and `feature` branches introduce different changes to the same files. There are two types of conflicts: content-only (Linus.txt, Margaret.txt) and file-level (Ken.txt, Dennis.txt).
 
-| File         | branch `develop` | branch `feature` |
+| File         | `develop` branch | `feature` branch |
 | ------------ | ---------------- | ---------------- |
 | Linus.txt    | modified         | modified         |
 | Margaret.txt | added            | added            |
@@ -116,16 +116,18 @@ Here’s a small [demo repo](https://github.com/capslocky/git-conflicts-demo) th
 If you do a regular rebase, it **stops 5 times**, and each time you need to **fix the next conflict** and proceed with `git rebase --continue`.
 
 ```bash
+git checkout feature
 git rebase develop
 ```
 
 While using this approach, you will notice:
-- Conflicts are handled **once**, at merge scope.
+- All conflicts are handled **once**, in the beginning.
 - Rebase proceeds **automatically**.
 - Final history is linear.
 - Final code matches your conflict resolution.
 
 ```bash
+git checkout feature
 ~/git-rebase-via-merge.sh
 ```
 

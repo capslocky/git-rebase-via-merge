@@ -84,7 +84,7 @@ init() {
   fi
 
   echo "Current branch:"
-  echo "$current_branch ($current_branch_hash)" # we can restore branch with: git reset 71e5dfa
+  echo "$current_branch ($current_branch_hash)"
   show_commit "$current_branch_hash"
   echo
 
