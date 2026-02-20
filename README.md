@@ -23,8 +23,8 @@ The script did a rebase after collapsing all conflicts in one-time manual resolu
 
 **Pros**
 - Keeps history intact, safe for shared feature branches.
-- You resolve all conflicts once.
 - Conflict scope is minimal and you see it completely.
+- You resolve all conflicts once.
 
 **Cons**
 - Adds a merge commit every time.
@@ -71,6 +71,7 @@ Conceptually, the script does this:
 Important implications:
 - If there are no conflicts, **there is nothing to resolve at all.**
 - The **final result is guaranteed** to match your manual resolution result.
+- All your unique changes are **kept in the branch history**. 
 - The script optimizes for **minimum conflict resolution effort and final correctness**, not for perfect intermediate commits.
 
 ## Setup and usage
@@ -88,28 +89,38 @@ Just run:
 ~/git-rebase-via-merge.sh
 ```
 
-instead of:
+Instead of:
 
 ```bash
 git rebase origin/develop
 ```
 
+You can add a git alias:
+```bash
+git config --global alias.rvm '!bash ~/git-rebase-via-merge.sh'
+```
+
+So it becomes just:
+```bash
+git rvm
+```
+
 The default base branch is `origin/develop`, but you can change it in the script or pass it dynamically:
 
 ```bash
-~/git-rebase-via-merge.sh origin/main
+git rvm origin/main
 ```
 
 
 ## Try it on the demo repo
 Here’s a small [demo repo](https://github.com/capslocky/git-conflicts-demo) that shows the problem clearly. The `develop` and `feature` branches introduce different changes to the same files. There are two types of conflicts: content-only (Linus.txt, Margaret.txt) and file-level (Ken.txt, Dennis.txt).
 
-| File         | `develop` branch | `feature` branch |
-| ------------ | ---------------- | ---------------- |
-| Linus.txt    | modified         | modified         |
-| Margaret.txt | added            | added            |
-| Ken.txt      | moved            | moved            |
-| Dennis.txt   | deleted          | modified         |
+| File         | `develop` branch by John | `feature` branch by Alex |
+| ------------ | ------------------------ | ------------------------ |
+| Linus.txt    | modified                 | modified                 |
+| Margaret.txt | added                    | added                    |
+| Ken.txt      | moved to 'engineers'     | moved to 'scientists'    |
+| Dennis.txt   | deleted                  | modified                 |
 
 ![before](https://raw.githubusercontent.com/capslocky/assets/main/git-rebase-via-merge/before.png)
 
@@ -134,6 +145,6 @@ git checkout feature
 ## When not to use this
 This workflow is not for everyone. You probably should not use it if:
 - You require all intermediate commits to build.
-- You cannot tolerate a rare additional commit (see the example).
+- You cannot tolerate a rare additional commit (see the example). However, you can exclude it in 100% cases if needed.
 
 ![commit](https://raw.githubusercontent.com/capslocky/assets/main/git-rebase-via-merge/commit.png)

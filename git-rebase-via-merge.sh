@@ -49,6 +49,10 @@ main() {
     additional_commit_hash=$(git commit-tree $hidden_result_hash^{tree} -p HEAD -m "$additional_commit_message")
 
     git merge --ff "$additional_commit_hash"
+    
+    # uncomment if you want to exclude additional commits completely:
+    # git reset --soft HEAD~1
+    # git commit --amend --no-edit
     echo
   fi
 
